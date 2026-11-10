@@ -45,6 +45,7 @@
     <symbol id="i-keys" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/></symbol>
     <symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.2"/><path d="M9 4.5v15"/></symbol>
     <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.2"/><path d="M15 4.5v15"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3.5h6l-1 5.5 3.5 3.5v1.5h-11V12.5L10 9z"/><path d="M12 14v6.5"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
@@ -69,9 +70,8 @@
 </svg>
 
 <div id="app" class="app">
-  <header class="topbar">
-    <button id="sideBtn" class="ib" title="Dávky (B)"><svg class="i"><use href="#i-side"/></svg></button>
-    <a class="brand" href="#" id="brand" title="Pult"><img src="/static/icons/logo.svg" alt=""><span>Pult</span></a>
+  <header class="topbar" data-mac-drag>
+    <button id="sideBtnTop" class="ib side-toggle" title="Dávky (B)"><svg class="i"><use href="#i-side"/></svg></button>
     <div class="crumb">
       <button id="batchTitle" class="crumb-title" title="Přejmenovat dávku"></button>
       <span id="batchMeta" class="crumb-meta"></span>
@@ -81,18 +81,27 @@
     <button id="claudeBtn" class="chip claude-chip" hidden><svg class="i"><use href="#i-spark"/></svg><span id="claudeLbl">Claude pracuje</span></button>
     <div id="people" class="people"></div>
     <button id="togetherBtn" class="chip" title="Přehrávat spolu: přehrávání, posun a přepínání se sdílí s ostatními zařízeními (T)"><svg class="i"><use href="#i-link"/></svg><span>Spolu</span></button>
-    <button id="teamBtn" class="ib" title="Tým a sdílení"><svg class="i"><use href="#i-users"/></svg></button>
-    <button id="helpBtn" class="ib" title="Klávesové zkratky (?)"><svg class="i"><use href="#i-keys"/></svg></button>
-    <button id="settingsBtn" class="ib" title="Nastavení"><svg class="i"><use href="#i-gear"/></svg></button>
     <button id="notesBtn" class="ib" title="Připomínky (\)"><svg class="i"><use href="#i-panel"/></svg><b id="notesBadge" class="badge" hidden></b></button>
   </header>
 
   <aside id="side" class="side">
+    <div class="side-top" data-mac-drag>
+      <button id="sideBtn" class="ib side-toggle" title="Skrýt dávky (B)"><svg class="i"><use href="#i-side"/></svg></button>
+      <a class="brand" href="#" id="brand" title="Pult"><img src="/static/icons/logo.svg" alt=""><span>Pult</span></a>
+      <div class="grow"></div>
+      <button id="addBtn" class="ib" title="Nahrát obrázky nebo videa (nebo je přetáhni do okna)"><svg class="i"><use href="#i-plus"/></svg></button>
+    </div>
     <div class="side-head">
       <label class="search"><svg class="i"><use href="#i-search"/></svg><input id="search" type="search" placeholder="Hledat dávku" autocomplete="off"></label>
-      <button id="addBtn" class="btn primary sm" title="Nahrát obrázky nebo videa (nebo je přetáhni do okna)"><svg class="i"><use href="#i-plus"/></svg>Přidat</button>
     </div>
     <div id="batchList" class="batch-list"></div>
+    <div class="side-foot">
+      <button id="settingsBtn" class="side-link" title="Nastavení (⌘,)"><svg class="i"><use href="#i-gear"/></svg><span>Nastavení</span></button>
+      <div class="grow"></div>
+      <button id="teamBtn" class="ib" title="Tým a sdílení"><svg class="i"><use href="#i-users"/></svg></button>
+      <button id="helpBtn" class="ib" title="Klávesové zkratky (?)"><svg class="i"><use href="#i-keys"/></svg></button>
+    </div>
+    <div class="side-rail" id="sideRail" title="Táhni pro změnu šířky, dvojklik vrátí výchozí"></div>
     <input id="fileInput" type="file" multiple accept="image/*,video/*,.heic,.heif,.mov,.mkv,.mxf,.tif,.tiff" hidden>
   </aside>
 

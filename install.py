@@ -311,35 +311,88 @@ def refresh_chrome_app_icon(icon_png, port):
         run(["killall", "Dock"])
 
 
+# Verze nativního okna (ne Pultu): mění se jen se Swiftem nebo Info.plist. Ad-hoc podepsaná aplikace
+# si oprávnění k mikrofonu drží jen do další změny binárky, proto se zbytečně nepřestavuje.
+NATIVE_SHELL_VERSION = "3.0"
+DOC_TYPES = ["public.movie", "public.image"]
 NATIVE_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
  <key>CFBundleName</key><string>Pult</string><key>CFBundleDisplayName</key><string>Pult</string>
- <key>CFBundleIdentifier</key><string>cz.pult.app</string><key>CFBundleVersion</key><string>%(v)s</string>
+ <key>CFBundleIdentifier</key><string>%(bid)s</string><key>CFBundleVersion</key><string>%(build)s</string>
  <key>CFBundleShortVersionString</key><string>%(v)s</string><key>CFBundlePackageType</key><string>APPL</string>
  <key>CFBundleExecutable</key><string>Pult</string><key>CFBundleIconFile</key><string>Pult</string>
+ <key>CFBundleDevelopmentRegion</key><string>en</string>
+ <key>CFBundleLocalizations</key><array><string>en</string><string>cs</string></array>
  <key>LSMinimumSystemVersion</key><string>12.0</string><key>NSHighResolutionCapable</key><true/>
  <key>LSApplicationCategoryType</key><string>public.app-category.video</string>
  <key>NSHumanReadableCopyright</key><string>Jan Pils · MIT</string>
  <key>NSMicrophoneUsageDescription</key><string>Pult uses the microphone to dictate comments.</string>
+ <key>CFBundleDocumentTypes</key><array>
+  <dict><key>CFBundleTypeName</key><string>Video or image</string><key>CFBundleTypeRole</key><string>Viewer</string>
+   <key>LSHandlerRank</key><string>Alternate</string><key>LSItemContentTypes</key><array>%(types)s</array></dict>
+ </array>
+ <key>CFBundleURLTypes</key><array>
+  <dict><key>CFBundleURLName</key><string>Pult</string><key>CFBundleURLSchemes</key><array><string>pult</string></array></dict>
+ </array>
  <key>PultURL</key><string>%(url)s</string><key>PultPython</key><string>%(py)s</string>
  <key>PultCLI</key><string>%(cli)s</string><key>PultConfig</key><string>%(cfg)s</string>
 </dict></plist>
 """
 
 
-def build_native_app(app, bundle, url):
-    """Nativní okno Pultu (Swift + WebKit). Vrací True, když se podařilo sestavit."""
+def make_icns(app, out):
+    """Ikona aplikace ve všech velikostech (z SVG, aby byla ostrá i 512 @2x)."""
+    svg = os.path.join(app, "static", "icons", "icon.svg")
+    png = os.path.join(app, "static", "icons", "icon-512.png")
+    iconset = os.path.join(config.config_dir(), "Pult.iconset")
+    shutil.rmtree(iconset, ignore_errors=True)
+    os.makedirs(iconset)
+    big = os.path.join(iconset, "src-1024.png")
+    src = big if run(["sips", "-s", "format", "png", "-Z", "1024", svg, "--out", big]).returncode == 0 and os.path.exists(big) else png
+    for sz in (16, 32, 128, 256, 512):
+        for scale in (1, 2):
+            px = sz * scale
+            if src == png and px > 512:
+                continue
+            run(["sips", "-z", str(px), str(px), src, "--out", os.path.join(iconset, "icon_%dx%d%s.png" % (sz, sz, "@2x" if scale == 2 else ""))])
+    if os.path.exists(big):
+        os.remove(big)
+    run(["iconutil", "-c", "icns", iconset, "-o", out])
+    shutil.rmtree(iconset, ignore_errors=True)
+
+
+def build_native_app(app, bundle, url, bundle_id="cz.pult.app"):
+    """Nativní aplikace Pultu (AppKit + WebKit). Vrací True, když je aplikace připravená.
+    Když se Swift ani Info.plist nezměnily, nechá stávající aplikaci beze změny: macOS u ní
+    pak pozná stejný podpis a nezeptá se znovu na mikrofon."""
     src = os.path.join(app, "macapp", "Pult.swift")
     if not os.path.exists(src):
         return False
+    import hashlib  # noqa: PLC0415
     import platform  # noqa: PLC0415
     from xml.sax.saxutils import escape  # noqa: PLC0415
+    arch = "arm64" if platform.machine() == "arm64" else "x86_64"
+    fields = {"v": NATIVE_SHELL_VERSION, "bid": bundle_id, "url": escape(url), "py": escape(python_exe()),
+              "cli": escape(os.path.join(app, "cli.py")), "cfg": escape(config.config_path()),
+              "types": "".join("<string>%s</string>" % t for t in DOC_TYPES)}
+    h = hashlib.sha256()
+    for f in (src, os.path.join(app, "static", "icons", "icon.svg")):
+        with open(f, "rb") as fh:
+            h.update(fh.read())
+    h.update((arch + json.dumps(fields, sort_keys=True)).encode("utf-8"))
+    fp = h.hexdigest()
+    stamp = os.path.join(config.config_dir(), "native-app.sha256")
+    try:
+        same = open(stamp, encoding="utf-8").read().strip() == fp
+    except OSError:
+        same = False
+    if same and os.path.isfile(os.path.join(bundle, "Contents", "MacOS", "Pult")):
+        return True
     tmp = bundle + ".build"
     shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(os.path.join(tmp, "Contents", "MacOS"))
     os.makedirs(os.path.join(tmp, "Contents", "Resources"))
-    arch = "arm64" if platform.machine() == "arm64" else "x86_64"
     if run(["xcode-select", "-p"]).returncode != 0:
         shutil.rmtree(tmp, ignore_errors=True)
         return False  # bez Command Line Tools: zůstane jednoduchý spouštěč v prohlížeči (instalátor to oznámí)
@@ -352,11 +405,15 @@ def build_native_app(app, bundle, url):
         say("  swiftc: %s" % (r.stderr or "").strip()[-400:])
         shutil.rmtree(tmp, ignore_errors=True)
         return False
+    fields["build"] = fp[:12]
     with open(os.path.join(tmp, "Contents", "Info.plist"), "w", encoding="utf-8") as f:
-        f.write(NATIVE_PLIST % {"v": config.VERSION, "url": escape(url), "py": escape(python_exe()),
-                                "cli": escape(os.path.join(app, "cli.py")), "cfg": escape(config.config_path())})
+        f.write(NATIVE_PLIST % fields)
+    make_icns(app, os.path.join(tmp, "Contents", "Resources", "Pult.icns"))
+    run(["codesign", "--force", "--deep", "-s", "-", tmp])
     shutil.rmtree(bundle, ignore_errors=True)
     os.replace(tmp, bundle)
+    with open(stamp, "w", encoding="utf-8") as f:
+        f.write(fp)
     return True
 
 
@@ -423,19 +480,8 @@ elif [ -d "/Applications/Google Chrome.app" ]; then open -na "Google Chrome" --a
 else open "%s"; fi
 """ % (config.config_path(), python_exe(), os.path.join(app, "cli.py"), url, url))
             os.chmod(exe, 0o755)
-        iconset = os.path.join(config.config_dir(), "Pult.iconset")
-        shutil.rmtree(iconset, ignore_errors=True)
-        os.makedirs(iconset)
-        for s in (16, 32, 128, 256, 512):
-            for scale in (1, 2):
-                px = s * scale
-                if px > 512:
-                    continue
-                run(["sips", "-z", str(px), str(px), icon_png, "--out", os.path.join(iconset, "icon_%dx%d%s.png" % (s, s, "@2x" if scale == 2 else ""))])
-        run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(bundle, "Contents", "Resources", "Pult.icns")])
-        shutil.rmtree(iconset, ignore_errors=True)
-        if native:
-            run(["codesign", "--force", "--deep", "-s", "-", bundle])
+        if not native:  # nativní aplikace má ikonu a podpis z build_native_app
+            make_icns(app, os.path.join(bundle, "Contents", "Resources", "Pult.icns"))
         run(["touch", bundle])
         run(["/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", "-f", bundle])
         try:

@@ -44,7 +44,7 @@ kbd { font: 600 11px var(--mono); padding: 2px 6px; border-radius: 5px; backgrou
 
 /* ---------- rozvržení ---------- */
 .app { height: 100%; display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr) var(--notes-w);
-  grid-template-rows: var(--top-h) minmax(0, 1fr); grid-template-areas: "top top top" "side center notes"; }
+  grid-template-rows: var(--top-h) minmax(0, 1fr); grid-template-areas: "side top top" "side center notes"; }
 .app.no-side { grid-template-columns: 0 minmax(0, 1fr) var(--notes-w); }
 .app.no-notes { grid-template-columns: var(--side-w) minmax(0, 1fr) 0; }
 .app.no-side.no-notes { grid-template-columns: 0 minmax(0, 1fr) 0; }
@@ -88,28 +88,54 @@ kbd { font: 600 11px var(--mono); padding: 2px 6px; border-radius: 5px; backgrou
 .btn.wide { flex: 1; height: 38px; font-size: 14px; }
 
 /* ---------- dávky ---------- */
-.side { grid-area: side; display: flex; flex-direction: column; min-height: 0; background: var(--s1); border-right: 1px solid var(--line); }
-.side-head { display: flex; gap: 8px; padding: 10px; }
+.side { grid-area: side; position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--s1); border-right: 1px solid var(--line); }
+.side-head { display: flex; gap: 8px; padding: 2px 10px 8px; }
 .search { flex: 1; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border-radius: 8px; background: var(--s2); border: 1px solid var(--line); color: var(--text3); min-width: 0; }
 .search .i { width: 15px; height: 15px; }
 .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text); }
 .batch-list { flex: 1; overflow-y: auto; padding: 0 6px 12px; }
-.group-h { display: flex; align-items: center; gap: 6px; padding: 12px 8px 6px; color: var(--text3); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; cursor: default; }
-.group-h button { color: var(--text3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; display: flex; align-items: center; gap: 4px; }
+.group-h { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; color: var(--text3); font-size: 11.5px; font-weight: 600; cursor: default; }
+.group-h button { color: var(--text3); font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.group-h button:hover { color: var(--text2); }
+.group-h .g-l { padding-left: 17px; }
 .group-h button .i { width: 13px; height: 13px; transition: transform .15s; }
 .group-h button.closed .i { transform: rotate(-90deg); }
-.brow { position: relative; width: 100%; display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: center; padding: 7px 8px; border-radius: 9px; text-align: left; }
+.brow { position: relative; width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 9px; align-items: center; padding: 6px 8px; border-radius: 8px; text-align: left; }
 .brow:hover { background: var(--s2); }
 .brow.on { background: var(--s3); }
-.brow .th { width: 58px; height: 38px; border-radius: 6px; background: #000 center/cover no-repeat; position: relative; overflow: hidden; display: grid; place-items: center; color: var(--text3); }
+.brow .th { width: 44px; height: 30px; border-radius: 5px; background: #000 center/cover no-repeat; position: relative; overflow: hidden; display: grid; place-items: center; color: var(--text3); }
 .brow .th .i { width: 16px; height: 16px; }
-.brow .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.brow .m { display: flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--text3); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
-.brow .m .pill { display: inline-flex; align-items: center; gap: 3px; color: var(--text2); }
-.brow .m .pill .i { width: 12px; height: 12px; }
-.brow .m .ok { color: var(--ok); }
-.brow .m .no { color: var(--no); }
-.brow .unsent { position: absolute; top: 9px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.brow .rb { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.brow .l1 { display: flex; align-items: center; gap: 6px; min-width: 0; height: 18px; }
+.brow .t { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.brow .when { flex: none; color: var(--text3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.brow .acts { display: none; flex: none; gap: 2px; }
+.brow .act { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 5px; color: var(--text3); }
+.brow .act .i { width: 13px; height: 13px; }
+.brow .act:hover { color: var(--text); background: var(--s4); }
+.brow:hover .when { display: none; }
+.brow:hover .acts { display: flex; }
+.brow .l2 { display: flex; align-items: center; gap: 7px; color: var(--text3); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+.brow .l2 .pill { display: inline-flex; align-items: center; gap: 3px; color: var(--text2); }
+.brow .l2 .pill .i { width: 12px; height: 12px; }
+.brow .l2 .ok { color: var(--ok); }
+.brow .l2 .no { color: var(--no); }
+/* stav dávky vedle názvu (jako stav vlákna v t3code) */
+.st-ic { flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; font-style: normal; font-size: 11px; }
+.st-ic .i { width: 13px; height: 13px; }
+.st-ic.dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.st-ic.warn { color: var(--warn); }
+.st-ic.wait { color: var(--accent2); }
+.st-ic.err { color: var(--no); }
+.st-ic.cl { color: var(--cl); }
+.st-ic.cl.work .i { animation: clSpin 3.2s linear infinite; }
+.st-ic.cl.done { color: var(--done); }
+.st-ic.spin { border: 1.6px solid var(--s4); border-top-color: var(--text2); border-radius: 50%; width: 11px; height: 11px; animation: spin .8s linear infinite; }
+.brow .jump { display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+.jump-on .brow .jump { display: inline-block; }
+.jump-on .brow .when, .jump-on .brow .acts { visibility: hidden; }
+.side-more { display: block; width: 100%; padding: 6px 8px 6px 61px; text-align: left; color: var(--text3); font-size: 12px; border-radius: 8px; }
+.side-more:hover { color: var(--text); background: var(--s2); }
 .brow .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); }
 .brow .bar i { display: block; height: 100%; background: var(--accent2); width: 0; transition: width .3s; }
 .side-empty { color: var(--text3); padding: 18px 12px; text-align: center; line-height: 1.5; }
@@ -539,3 +565,41 @@ select.inp { padding-right: 6px; }
 a.btn, a.btn:visited { color: var(--text); text-decoration: none; }
 a.btn.primary, a.btn.primary:visited { color: var(--on-accent); }
 .dset a, .dset a:visited { color: var(--text); }
+
+/* ---------- nativní aplikace pro macOS ---------- */
+/* Lišta má výšku toolbaru macOS, semafor (zavřít, minimalizovat, zvětšit) sedí v ní vlevo a uprostřed.
+   Odsazení od semaforu (--mac-tl) dodá aplikace podle skutečné polohy tlačítek. */
+.mac-native { --top-h: 52px; }
+.mac-native .side-top { padding-left: var(--mac-tl, 86px); }
+.mac-native .app.no-side .topbar { padding-left: var(--mac-tl, 86px); }
+.mac-native.mac-fullscreen .side-top, .mac-native.mac-fullscreen .app.no-side .topbar { padding-left: 10px; }
+.mac-native .side-top .brand span { display: none; }
+@media (max-width: 1180px) { .mac-native .app .topbar { padding-left: var(--mac-tl, 86px); } .mac-native.mac-fullscreen .app .topbar { padding-left: 10px; } }
+.mac-native.mac-inactive .topbar > *, .mac-native.mac-inactive .side-top > * { opacity: .55; }
+/* jako v nativních aplikacích: šipka místo ručičky a popisky rozhraní nejdou označit */
+.mac-native body { -webkit-user-select: none; user-select: none; cursor: default; }
+.mac-native button, .mac-native .note, .mac-native .radio, .mac-native .sw-t input,
+.mac-native .field.avd .chk, .mac-native .dset .dopt { cursor: default; }
+
+/* ---------- boční panel (rozvržení jako t3code) ---------- */
+/* Panel jde od horního okraje okna: nahoře přepínač, značka a přidání, dole nastavení. Šířka se táhne za okraj. */
+.side-top { height: var(--top-h); flex: none; display: flex; align-items: center; gap: 2px; padding: 0 8px 0 10px; }
+.side-top .brand { padding: 0 4px; font-size: 14px; }
+.side-top .brand img { width: 20px; height: 20px; }
+.side-top .ib, .side-foot .ib { width: 30px; height: 30px; }
+.side-foot { flex: none; display: flex; align-items: center; gap: 2px; padding: 6px 8px; border-top: 1px solid var(--line); }
+.side-link { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 8px; color: var(--text2); font-weight: 500; }
+.side-link:hover { color: var(--text); background: var(--s3); }
+.side-link .i { width: 16px; height: 16px; }
+.side-rail { position: absolute; top: 0; bottom: 0; right: -4px; width: 8px; cursor: col-resize; z-index: 6; }
+.side-rail::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background .15s; }
+.side-rail:hover::after, .resizing .side-rail::after { background: var(--line2); }
+.resizing, .resizing * { cursor: col-resize !important; user-select: none !important; }
+.app:not(.no-side) #sideBtnTop { display: none; }
+.topbar #sideBtnTop + .crumb { border-left: 0; }
+.app.no-side .topbar .crumb { border-left: 1px solid var(--line2); }
+@media (max-width: 1180px) {
+  .app, .app.no-side, .app.no-notes, .app.no-side.no-notes { grid-template-areas: "top top top" "side center notes"; }
+  .app #sideBtnTop { display: grid; }
+  .side-top .side-toggle, .side-rail { display: none; }
+}

@@ -1,6 +1,6 @@
 // Pult: hlavní modul (spojení se serverem, navigace, pás položek, zkratky, lidé na pultu).
 const VERSION = "2.10.8";
-import { $, $$, S, store, api, dialog, clientId, clock, esc, icon, on, emit, toast, ago, plural, initials, isTouch, anyDialog, dialogs, closeMenu, menu, fmtTC, dbg } from "./core.js";
+import { $, $$, S, store, api, dialog, clientId, clock, esc, icon, on, emit, toast, ago, plural, initials, isTouch, anyDialog, dialogs, closeMenu, menu, fmtTC, dbg, isEN } from "./core.js";
 import * as P from "./player.js";
 import * as D from "./draw.js";
 import * as N from "./notes.js";
@@ -8,6 +8,7 @@ import { loadBatches, refreshSoon, renderList, pickFiles } from "./side.js";
 import * as Side from "./side.js";
 import * as Dict from "./dictate.js";
 import { openSettings, openHelp, welcome, loadSettings } from "./settings.js";
+import * as Native from "./native.js";
 
 const app = $("#app");
 if (isTouch) document.documentElement.classList.add("is-touch");
@@ -360,6 +361,7 @@ async function handle(m) {
       } else if (m.new) {
         const b = (await loadBatches()).find((x) => x.id === m.batch);
         if (b) toast(`Nová dávka: ${b.title}`, { action: "Otevřít", onAction: () => openBatch(b.id) });
+        if (b) Native.notify(isEN() ? "New batch on Pult" : "Nová dávka na Pultu", b.title, b.id);
       }
       break;
     }
@@ -369,6 +371,8 @@ async function handle(m) {
       if (i < 0) { S.batch.items.push(m.item); renderStrip(); renderHeader(); return; }
       const was = S.batch.items[i].state;
       S.batch.items[i] = m.item;
+      if (was !== "ready" && m.item.state === "ready" && m.item.kind === "video" && S.batch.items.every((x) => x.state === "ready" || x.state === "error"))
+        Native.notify(isEN() ? "Previews are ready" : "Náhledy jsou připravené", S.batch.title, S.batch.id);
       renderStrip();
       if (m.item.n === S.n) { renderItembar(); if (was !== m.item.state || m.item.state !== "ready") P.showItem().then(() => N.updateAnchor()); }
       break;
@@ -499,8 +503,10 @@ function toggleNotes(force) {
 if (store.get("noSide", false)) app.classList.add("no-side");
 if (store.get("noNotes", false)) app.classList.add("no-notes");
 $("#sideBtn").onclick = toggleSide;
+$("#sideBtnTop").onclick = toggleSide;
 $("#notesBtn").onclick = () => toggleNotes();
 on("show-notes", () => toggleNotes(true));
+on("layout", () => requestAnimationFrame(P.layout));
 on("hide-drawers", () => app.classList.remove("drawer-side", "drawer-notes"));
 
 // iPad: Safari umí posunout celou stránku (klávesnice v panelu, zavření panelu) a nechat ji posunutou.
@@ -623,6 +629,50 @@ document.addEventListener("keydown", (e) => {
     case "\\": used(); toggleNotes(); break;
     case "?": used(); openHelp(); break;
   }
+});
+
+// ---------- nativní aplikace pro macOS: menu, Dock, okno ----------
+const zoomCenter = (f) => { const r = $("#viewport").getBoundingClientRect(); P.zoomAt(r.left + r.width / 2, r.top + r.height / 2, f); };
+Native.init({
+  state: () => {
+    const open = S.batches.filter((b) => b.status === "open");
+    return {
+      lang: document.documentElement.lang, version: VERSION, local: !!S.local,
+      sidebar: wide() ? !app.classList.contains("no-side") : app.classList.contains("drawer-side"),
+      notes: wide() ? !app.classList.contains("no-notes") : app.classList.contains("drawer-notes"),
+      batch: !!S.batch, item: !!P.item(), video: P.isVideo(), playing: P.isVideo() && !P.vid.paused,
+      loop: !!S.loop, stopAtNotes: !!S.stopAtNotes, muted: !!P.vid.muted, kino: !!S.kino, together: !!S.together,
+      canSend: !!S.batch && S.batch.status === "open", modal: anyDialog(), busy: Side.busy(),
+      toReview: open.length, batches: open.slice(0, 20).map((b) => ({ id: b.id, title: b.title })),
+    };
+  },
+  commands: {
+    "add-files": () => pickFiles(null),
+    "add-to-batch": () => S.batch && pickFiles(S.batch.id),
+    "add-paths": (a) => Side.addPaths(a.files, a.title, a.useInputTarget),
+    "open-batch": (a) => openBatch(a.id, a.n || 1),
+    "reveal-batch": () => S.batch && api("POST", "/api/open", { what: "batch", id: S.batch.id }),
+    "reveal-library": () => api("POST", "/api/open", { what: "library" }),
+    "send-review": () => N.submit(),
+    find: () => { if (wide() ? app.classList.contains("no-side") : !app.classList.contains("drawer-side")) toggleSide(); const s = $("#search"); s.focus(); s.select(); },
+    undo: () => D.undo(), redo: () => D.redo(),
+    settings: () => openSettings(), help: () => openHelp(),
+    "toggle-sidebar": () => toggleSide(), "toggle-notes": () => toggleNotes(),
+    theater: () => P.setKino(!S.kino), zones: () => P.cycleZones(),
+    "zoom-in": () => zoomCenter(1.25), "zoom-out": () => zoomCenter(1 / 1.25), "zoom-reset": () => P.resetZoom(),
+    "play-pause": () => { P.toggle(); P.kbarPoke(); }, pause: () => P.isVideo() && P.pause(),
+    "frame-prev": () => (P.isVideo() ? P.step(-1) : step(-1)), "frame-next": () => (P.isVideo() ? P.step(1) : step(1)),
+    back: () => (P.isVideo() ? P.jump(-5) : step(-1)), forward: () => (P.isVideo() ? P.jump(5) : step(1)),
+    start: () => P.goEdge(false), end: () => P.goEdge(true),
+    "item-prev": () => step(-1), "item-next": () => step(1),
+    "note-next": () => P.nextNote(1), "note-prev": () => P.nextNote(-1),
+    slower: () => P.rateStep(-1), faster: () => P.rateStep(1),
+    loop: () => P.setLoop(!S.loop), "stop-at-notes": () => P.setStopAtNotes(!S.stopAtNotes), mute: () => P.toggleMute(),
+    together: () => setTogether(!S.together),
+    approve: () => N.setVerdict("ok"), reject: () => N.setVerdict("no"),
+    comment: () => N.focusComposer(), dictate: () => Dict.toggle(),
+    tool: (t) => D.setTool(t), "clear-frame": () => D.clearFrame(),
+  },
 });
 
 // ---------- start ----------
