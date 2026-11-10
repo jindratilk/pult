@@ -1,0 +1,35 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # nejstarší podporovaný Python (3.9) tam, kde ho runner ještě má; na Linuxu aktuální
+          - { os: macos-latest, python: "3.9" }
+          - { os: windows-latest, python: "3.9" }
+          - { os: ubuntu-latest, python: "3.x" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Python compiles
+        run: python -m compileall -q pult install.py make_zip.py
+      - name: Web scripts parse
+        shell: bash
+        run: for f in pult/static/js/*.js; do node --check --input-type=module < "$f"; done
+      - name: Unit and smoke tests
+        run: python -m unittest discover -s tests -v
+      - name: Every Czech UI string has English
+        if: hashFiles('tests/i18n_coverage.mjs') != ''
+        run: node tests/i18n_coverage.mjs
+      - name: macOS app compiles
+        if: runner.os == 'macOS'
+        run: xcrun swiftc -typecheck -target arm64-apple-macos12 pult/macapp/Pult.swift
