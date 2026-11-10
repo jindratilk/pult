@@ -49,7 +49,7 @@ export function plural(n, one, few, many) {
 export function initials(name) { const p = String(name || "?").trim().split(/\s+/); return ((p[0] || "?")[0] + (p[1] ? p[1][0] : "")).toUpperCase(); }
 
 export async function api(method, url, body, opts = {}) {
-  const r = await fetch(url, { method, headers: body !== undefined ? { "Content-Type": "application/json" } : {}, body: body !== undefined ? JSON.stringify(body) : undefined, cache: "no-store", ...opts });
+  const r = await fetch(url, { method, headers: { "X-Pult-Lang": document.documentElement.lang || "cs", ...(body !== undefined ? { "Content-Type": "application/json" } : {}) }, body: body !== undefined ? JSON.stringify(body) : undefined, cache: "no-store", ...opts });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error(j.error || `Chyba ${r.status}`); e.status = r.status; throw e; }
   return j;

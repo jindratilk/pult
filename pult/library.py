@@ -448,7 +448,10 @@ def collect(paths):
 
 def create_batch(title, origin=None):
     ensure_dirs()
-    title = (title or "").strip() or datetime.now().strftime("Dávka %d. %m. %H:%M")
+    if not (title or "").strip():
+        now = datetime.now()
+        title = now.strftime("Dávka %d. %m. %H:%M") if config.ui_lang() == "cs" else "Batch %s %d, %s" % (now.strftime("%b"), now.day, now.strftime("%H:%M"))
+    title = title.strip()
     bid = "%s_%s" % (datetime.now().strftime("%Y-%m-%d_%H%M%S"), slug(title))
     d = os.path.join(davky(), bid)
     i = 1
@@ -951,7 +954,7 @@ def composite(item, media, frame, overlay_png, out):
     return r.returncode == 0
 
 
-def submit(bid, overlays, by):
+def submit(bid, overlays, by, lang="cs"):
     """Hotovo: složka revize/<čas>__<dávka> s revize.md (pro Clauda), revize.json a obrázky."""
     d = batch_dir(bid)
     with lock:
@@ -1014,7 +1017,7 @@ def submit(bid, overlays, by):
                "notes": rows}
         save_json(os.path.join(folder, "revize.json"), rev)
         with open(os.path.join(folder, "revize.md"), "w", encoding="utf-8") as f:
-            f.write(review_md(rev))
+            f.write(review_md(rev, lang))
         b.setdefault("submissions", []).append({"at": rev["submitted"], "by": by, "folder": os.path.basename(folder)})
         b["status"], b["status_at"] = "done", rev["submitted"]
         save_json(os.path.join(d, "batch.json"), b)
@@ -1022,52 +1025,67 @@ def submit(bid, overlays, by):
             "drawings": sum(r["drawings"] for r in rows), "comments": sum(len(r["comments"]) for r in rows)}
 
 
-def review_md(rev):
-    V = {"ok": "✅ schváleno", "no": "❌ zamítnuto", None: "bez verdiktu"}
+def review_md(rev, lang="cs"):
+    """revize.md pro agenta, v jazyce rozhraní, ze kterého revize přišla."""
+    def T(cs, en):
+        return en if lang == "en" else cs
+    V = {"ok": T("✅ schváleno", "✅ approved"), "no": T("❌ zamítnuto", "❌ rejected"), None: T("bez verdiktu", "no verdict")}
     notes = rev["notes"]
-    lines = ["# Revize: %s" % rev["title"], "",
-             "- Dávka: `%s`" % rev["batch"], "- Odesláno: %s%s" % (rev["submitted"], (" (%s)" % rev["by"]) if rev.get("by") else ""),
-             "- Připomínek: %d (kreseb %d, komentářů %d)" % (len(notes), sum(r["drawings"] for r in notes), sum(len(r["comments"]) for r in notes)),
-             "- Číslo v hranaté závorce u komentáře = pořadí, v jakém vznikal (u každé položky zvlášť). Revizor video pouští víckrát,"
-             " takže pozdější číslo u dřívějšího času znamená, že se k místu vrátil.",
-             "- Časy jsou `mm:ss:ff` (minuty:sekundy:snímek v rámci vteřiny) a v sekundách; snímek = pořadí od 0.",
-             "- Obrázky ukazují přesný snímek i s kresbou. Když nic neschválili ani nenapsali, platí, že je položka v pořádku."]
+    nd, nc = sum(r["drawings"] for r in notes), sum(len(r["comments"]) for r in notes)
+    lines = [T("# Revize: %s", "# Review: %s") % rev["title"], "",
+             T("- Dávka: `%s`", "- Batch: `%s`") % rev["batch"],
+             T("- Odesláno: %s%s", "- Sent: %s%s") % (rev["submitted"], (" (%s)" % rev["by"]) if rev.get("by") else ""),
+             T("- Připomínek: %d (kreseb %d, komentářů %d)", "- Notes: %d (drawings %d, comments %d)") % (len(notes), nd, nc),
+             T("- Číslo v hranaté závorce u komentáře = pořadí, v jakém vznikal (u každé položky zvlášť). Revizor video pouští víckrát,"
+               " takže pozdější číslo u dřívějšího času znamená, že se k místu vrátil.",
+               "- The number in square brackets before a comment is the order it was written in (per item). Reviewers play a video"
+               " several times, so a later number at an earlier time means they came back to that spot."),
+             T("- Časy jsou `mm:ss:ff` (minuty:sekundy:snímek v rámci vteřiny) a v sekundách; snímek = pořadí od 0.",
+               "- Times are `mm:ss:ff` (minutes:seconds:frame within the second) and in seconds; frame = index from 0."),
+             T("- Obrázky ukazují přesný snímek i s kresbou. Když nic neschválili ani nenapsali, platí, že je položka v pořádku.",
+               "- Images show the exact frame with the drawing. An item with no verdict and no notes is fine.")]
     o = rev.get("origin") or {}
     if o.get("host_session") or o.get("session"):
-        lines.append("- Dávku poslal chat `%s`%s." % (o.get("host_session") or o.get("session"),
-                                                     (" (složka `%s`)" % o["cwd"]) if o.get("cwd") else ""))
+        lines.append(T("- Dávku poslal chat `%s`%s.", "- Sent by chat `%s`%s.") % (o.get("host_session") or o.get("session"),
+                     (T(" (složka `%s`)", " (folder `%s`)") % o["cwd"]) if o.get("cwd") else ""))
     if rev.get("agent_note"):
-        lines.append("- Tvoje poznámka k dávce (revizor ji v Pultu viděl): %s" % rev["agent_note"].replace("\n", " "))
+        lines.append(T("- Tvoje poznámka k dávce (revizor ji v Pultu viděl): %s", "- Your note on the batch (the reviewer saw it in Pult): %s")
+                     % rev["agent_note"].replace("\n", " "))
     lines.append("")
     by_n = {}
     for r in notes:
         by_n.setdefault(r["n"], []).append(r)
     for it in rev["items"]:
-        meta = it["kind"] if it["kind"] == "image" else "video %s fps, %s s" % (round(it.get("fps") or 0, 3), round(it.get("duration") or 0, 2))
+        meta = T("obrázek", "image") if it["kind"] == "image" else "video %s fps, %s s" % (round(it.get("fps") or 0, 3), round(it.get("duration") or 0, 2))
         lines.append("## #%02d %s" % (it["n"], it.get("name") or ""))
         lines.append("- %s · %s×%s · %s%s" % (meta, it.get("width"), it.get("height"), V.get(it.get("verdict")),
                                              (" (%s)" % it["verdict_by"]) if it.get("verdict_by") else ""))
-        lines.append("- Zdroj: `%s`" % it.get("source"))
+        lines.append(T("- Zdroj: `%s`", "- Source: `%s`") % it.get("source"))
         if it.get("agent_note"):
-            lines.append("- Tvoje poznámka u položky: %s" % it["agent_note"].replace("\n", " "))
+            lines.append(T("- Tvoje poznámka u položky: %s", "- Your note on this item: %s") % it["agent_note"].replace("\n", " "))
         for r in by_n.get(it["n"], []):
-            where = "%s (%.3f s, snímek %d)" % (r["tc"], r["time"], r["frame"]) if r.get("tc") else ("obrázek" if r["kind"] == "image" else "celé video")
+            if r.get("tc"):
+                where = T("%s (%.3f s, snímek %d)", "%s (%.3f s, frame %d)") % (r["tc"], r["time"], r["frame"])
+            else:
+                where = T("obrázek", "image") if r["kind"] == "image" else T("celé video", "whole video")
             head = "- **%s**" % where
             if r["drawings"]:
-                head += " · kresba (%d tah%s)" % (r["drawings"], "" if r["drawings"] == 1 else "y" if r["drawings"] < 5 else "ů")
+                k = r["drawings"]
+                head += T(" · kresba (%d tah%s)" % (k, "" if k == 1 else "y" if k < 5 else "ů"), " · drawing (%d stroke%s)" % (k, "" if k == 1 else "s"))
             if r["authors"]:
                 head += " · " + ", ".join(r["authors"])
             if r.get("image"):
-                head += " · obrázek `%s`" % r["image"]
+                head += T(" · obrázek `%s`", " · image `%s`") % r["image"]
             if not r["changed"] and rev.get("previous_submission"):
-                head += " · beze změny od minulé revize"
+                head += T(" · beze změny od minulé revize", " · unchanged since the last review")
             lines.append(head)
             for c in r["comments"]:
-                lines.append("  - %s%s%s%s: %s" % ("[%d] " % c["order"] if c.get("order") else "", c.get("by") or "?", " (nadiktováno, přepis může mít chyby)" if c.get("dictated") else "",
-                                                 " (vyřešeno)" if c.get("resolved") else "", c["text"].replace("\n", " ")))
+                lines.append("  - %s%s%s%s: %s" % ("[%d] " % c["order"] if c.get("order") else "", c.get("by") or "?",
+                                                 T(" (nadiktováno, přepis může mít chyby)", " (dictated, the transcript may contain errors)") if c.get("dictated") else "",
+                                                 T(" (vyřešeno)", " (resolved)") if c.get("resolved") else "", c["text"].replace("\n", " ")))
         lines.append("")
     if not notes and not any(it.get("verdict") for it in rev["items"]):
-        lines.append("Bez připomínek: dávka prošla a je schválená.")
+        lines.append(T("Bez připomínek: dávka prošla a je schválená.", "No notes: the batch passed and is approved."))
     return "\n".join(lines) + "\n"
 
 

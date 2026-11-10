@@ -266,7 +266,8 @@ async function micSelect(sec) {
   const list = await mics();
   list.filter((d) => d.deviceId !== "default").forEach((d, i) => {
     const o = document.createElement("option");
-    o.value = d.deviceId; o.textContent = (d.label || "Mikrofon " + (i + 1)) + (BT_MIC.test(d.label) ? " (sluchátka, zvuk bude jako při hovoru)" : "");
+    o.value = d.deviceId; const name = d.label || `Mikrofon ${i + 1}`;
+    o.textContent = BT_MIC.test(d.label) ? `${name} (sluchátka, zvuk bude jako při hovoru)` : name;
     sel.appendChild(o);
   });
   const cur = store.get("mic", "auto");

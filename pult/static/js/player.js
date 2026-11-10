@@ -381,7 +381,7 @@ let loadTimer = 0;
 function clearLoading() { clearTimeout(loadTimer); loadTimer = 0; $("#loading").hidden = true; }
 vid.addEventListener("waiting", () => { clearTimeout(loadTimer); loadTimer = setTimeout(() => { if (!vid.paused || vid.seeking) $("#loading").hidden = false; }, 350); });
 for (const ev of ["playing", "canplay", "pause"]) vid.addEventListener(ev, clearLoading);
-vid.addEventListener("error", () => { if (item() && item().kind === "video" && vid.getAttribute("src")) showPrep({ ...item(), state: "error", error: "Prohlížeč video nepřehraje (kód " + (vid.error && vid.error.code) + ")." }); });
+vid.addEventListener("error", () => { if (item() && item().kind === "video" && vid.getAttribute("src")) showPrep({ ...item(), state: "error", error: `Prohlížeč video nepřehraje (kód ${vid.error && vid.error.code}).` }); });
 
 $("#playBtn").onclick = toggle;
 $("#prevF").onclick = () => step(-1);

@@ -13,7 +13,7 @@ Pult runs on this computer as a service: **{{URL}}**. It is controlled with the 
 
 (in a new terminal plain `pult` works). Library with batches and reviews: `{{LIBRARY}}`.
 
-Talk to the user in their language. Pult's own output (revize.md, labels) is partly in Czech: "revize" = review, "dávka" = batch, "položka" = item.
+Talk to the user in their language. `revize.md` is written in the language of the Pult interface it was sent from (Czech or English). Folder names stay Czech: "revize" = reviews, "davky" = batches, "archiv" = archive.
 
 ## Send to Pult
 
@@ -67,9 +67,9 @@ pult reviews --json  # new reviews only
    - A drawing (line, arrow, circle, rectangle) marks the spot the note is about. The comment below says what to do with it.
    - Time `mm:ss:ff` = minutes:seconds:frame within the second; in brackets the seconds and frame index from 0 (for ffmpeg: `-ss` in seconds).
    - ✅ approved / ❌ rejected is the verdict for the whole item (for variants: picked and dropped). An item without notes or verdict is fine.
-   - "beze změny od minulé revize" = unchanged since the last review: the note is older, not new.
+   - "unchanged since the last review" (Czech: "beze změny od minulé revize"): the note is older, not new.
    - Several authors = a team; names are on every note.
-   - "(nadiktováno, přepis může mít chyby)" = dictated: the user spoke and speech-to-text transcribed it. Take the meaning, not the exact wording; guess misheard names and terms from context.
+   - "(dictated, the transcript may contain errors)" (Czech: "nadiktováno, přepis může mít chyby"): the user spoke and speech-to-text transcribed it. Take the meaning, not the exact wording; guess misheard names and terms from context.
 3. Then make the changes. Send the new version to Pult again as a new batch (for example "Banner v3").
 4. Mark the review as done: `pult archive <review-folder> -m "what is done"` (or `all`). The user sees "done" with that message in Pult. If you picked the review up through `pult status` (without `pult wait`), first run `pult progress <review-folder>` so it shows you are working on it.
 5. If there is no new review, say so plainly and give the time of the last one. If `status` reports unsent drawings, mention them: the user has them in Pult but has not pressed **Send review** yet.

@@ -307,7 +307,7 @@ export async function submit() {
       overlays[k] = renderOverlay(it, f, label);
     }
     releaseOverlay();
-    const r = await api("POST", `/api/batch/${encodeURIComponent(b.id)}/submit`, { overlays, by: S.me.name, from: clientId });
+    const r = await api("POST", `/api/batch/${encodeURIComponent(b.id)}/submit`, { overlays, by: S.me.name, from: clientId, lang: document.documentElement.lang });
     const what = r.notes ? plural(r.notes, "připomínka", "připomínky", "připomínek") : "bez připomínek";
     const waiting = (S.batches.find((x) => x.id === b.id) || {}).waiting;
     toast(waiting ? `Revize odeslána Claudovi do chatu, který dávku poslal (${what}).`

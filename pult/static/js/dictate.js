@@ -75,7 +75,7 @@ async function openMic() {
   if (BT_MIC.test(curLabel) && builtin) {
     if (s) s.getTracks().forEach((t) => t.stop());
     dbg("dict: mikrofon " + builtin.label + " místo " + curLabel);
-    if (!store.get("micHint", false)) { store.set("micHint", true); toast("Diktuju do mikrofonu " + builtin.label + ", ne do sluchátek: AirPods by jinak přepnuly do režimu hovoru a hrály roboticky. Změníš v Nastavení › Diktování.", { ms: 7000 }); }
+    if (!store.get("micHint", false)) { store.set("micHint", true); toast(`Diktuju do mikrofonu ${builtin.label}, ne do sluchátek: AirPods by jinak přepnuly do režimu hovoru a hrály roboticky. Změníš v Nastavení › Diktování.`, { ms: 7000 }); }
     return open(builtin.deviceId).catch(() => open());
   }
   return s || open();

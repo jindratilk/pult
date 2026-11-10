@@ -418,6 +418,7 @@ function startUpload(all, title, bid) {
     return new Promise((res, rej) => {
       xhr = new XMLHttpRequest();
       xhr.open("PUT", `/api/upload/${encodeURIComponent(target)}?name=${encodeURIComponent(file.name)}`);
+      xhr.setRequestHeader("X-Pult-Lang", document.documentElement.lang || "cs");
       xhr.upload.onprogress = (e) => onProgress(e.loaded);
       xhr.onload = () => { let j = {}; try { j = JSON.parse(xhr.responseText); } catch {} xhr.status < 300 ? res(j.path) : rej(new Error(j.error || xhr.status)); };
       xhr.onerror = () => rej(new Error("spojení přerušeno"));

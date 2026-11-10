@@ -63,6 +63,27 @@ DEFAULTS = {
 _lock = threading.Lock()
 
 
+_sys_lang = None
+
+
+def ui_lang(cfg=None):
+    """Jazyk pro texty ze serveru a příkazové řádky: nastavení Pultu, jinak jazyk systému."""
+    global _sys_lang
+    lang = (cfg or load()).get("lang")
+    if lang in ("cs", "en"):
+        return lang
+    if _sys_lang is None:
+        loc = os.environ.get("LC_ALL") or os.environ.get("LANG") or ""
+        if IS_MAC and not loc:
+            try:
+                import subprocess  # noqa: PLC0415
+                loc = subprocess.run(["defaults", "read", "-g", "AppleLocale"], capture_output=True, text=True, timeout=3).stdout
+            except Exception:
+                loc = ""
+        _sys_lang = "cs" if loc.lower().startswith(("cs", "sk")) else "en"
+    return _sys_lang
+
+
 def config_path():
     return os.environ.get("PULT_CONFIG") or os.path.join(config_dir(), "config.json")
 

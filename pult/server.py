@@ -21,6 +21,7 @@ import aimeta  # noqa: E402
 import config  # noqa: E402
 import dictation  # noqa: E402
 import library  # noqa: E402
+import messages  # noqa: E402
 import tls  # noqa: E402
 
 for ext, typ in ((".mp4", "video/mp4"), (".mov", "video/quicktime"), (".webp", "image/webp"), (".avif", "image/avif"),
@@ -295,7 +296,16 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def ui_lang(self):
+        """Jazyk rozhraní, které se ptá (hlavička z api() v core.js), jinak podle prohlížeče."""
+        h = (self.headers.get("X-Pult-Lang") or "").lower()
+        if h in ("cs", "en"):
+            return h
+        return "cs" if (self.headers.get("Accept-Language") or "").lower().startswith(("cs", "sk")) else "en"
+
     def send_json(self, obj, code=200):
+        if isinstance(obj, dict) and isinstance(obj.get("error"), str) and self.ui_lang() == "en":
+            obj = dict(obj, error=messages.en(obj["error"]))
         data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -670,7 +680,8 @@ class Handler(BaseHTTPRequestHandler):
             broadcast({"type": "batches", "batch": bid})
             return self.send_json({"ok": True})
         if action == "submit":
-            r = library.submit(bid, body.get("overlays") or {}, str(body.get("by") or "")[:60])
+            r = library.submit(bid, body.get("overlays") or {}, str(body.get("by") or "")[:60],
+                               body.get("lang") if body.get("lang") in ("cs", "en") else config.ui_lang())
             broadcast({"type": "submitted", "batch": bid, "from": frm, "by": body.get("by"), "result": r})
             broadcast({"type": "batches", "batch": bid})
             return self.send_json(r)
@@ -760,7 +771,7 @@ def app_version():
 
 def status():
     with hub_lock:
-        people = [p.get("name") or "bez jména" for p in presence.values() if p.get("conns")]
+        people = [p.get("name") or ("bez jména" if config.ui_lang() == "cs" else "no name") for p in presence.values() if p.get("conns")]
     return {"ok": True, "app": config.APP_NAME, "version": config.VERSION, "web": app_version(), "library": library.root(),
             "uptime": int(time.time() - started), "clients": people, "queue": library.jobs.qsize(),
             "new_reviews": len(library.reviews()), "share": config.load().get("share")}
@@ -874,13 +885,14 @@ def pick_folder(initial):
     """Nativní výběr složky na počítači s Pultem (macOS: Finder, Windows: dialog Průzkumníka)."""
     try:
         if config.IS_MAC:
-            script = 'POSIX path of (choose folder with prompt "Vyber složku pro Pult"%s)' % (
+            prompt = "Vyber složku pro Pult" if config.ui_lang() == "cs" else "Choose a folder for Pult"
+            script = 'POSIX path of (choose folder with prompt "%s"%s)' % (prompt,
                 (' default location (POSIX file "%s")' % initial.replace('"', "")) if initial and os.path.isdir(initial) else "")
             r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=600)
             return r.stdout.strip().rstrip("/") or None if r.returncode == 0 else None
         if config.IS_WIN:
             ps = ("[Console]::OutputEncoding=[Text.Encoding]::UTF8;Add-Type -AssemblyName System.Windows.Forms;"
-                  "$f=New-Object System.Windows.Forms.FolderBrowserDialog;$f.Description='Vyber složku pro Pult';"
+                  "$f=New-Object System.Windows.Forms.FolderBrowserDialog;$f.Description='" + ("Vyber složku pro Pult" if config.ui_lang() == "cs" else "Choose a folder for Pult") + "';"
                   "$f.ShowNewFolderButton=$true;if($f.ShowDialog() -eq 'OK'){$f.SelectedPath}")
             r = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", ps], capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=600, creationflags=library.NO_WINDOW)

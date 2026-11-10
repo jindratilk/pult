@@ -566,7 +566,7 @@ def cmd_url(a):
     try:
         v = api("GET", "/api/settings")
         for u in v.get("invite") or []:
-            print("Pro kolegy: %s" % u)
+            print("For colleagues: %s" % u)
         print("Access code: %s" % cfg.get("access_code"))
     except OSError:
         print("Server is not running.")
