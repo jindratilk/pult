@@ -137,8 +137,8 @@ def probe(path):
     if not ffprobe:
         return {}
     r = run([ffprobe, "-v", "error", "-show_entries",
-             "stream=codec_type,codec_name,width,height,avg_frame_rate,r_frame_rate,nb_frames:stream_disposition=attached_pic"
-             ":format=duration,format_name", "-of", "json", path], timeout=60)
+             "stream=codec_type,codec_name,pix_fmt,width,height,avg_frame_rate,r_frame_rate,nb_frames:stream_disposition=attached_pic"
+             ":stream_side_data=rotation:format=duration,format_name", "-of", "json", path], timeout=60)
     try:
         j = json.loads(r.stdout or "{}")
     except ValueError:
@@ -153,7 +153,8 @@ def probe(path):
     # fps se neukrajuje: 29,97 zaokrouhlené na 4 místa by po ~100 snímcích ukazovalo o snímek vedle
     return {"codec": v.get("codec_name"), "width": v.get("width") or 0, "height": v.get("height") or 0,
             "fps": fps, "fps_s": fps_s or "30", "duration": rational((j.get("format") or {}).get("duration")),
-            "frames": int(v.get("nb_frames") or 0), "audio": a is not None}
+            "frames": int(v.get("nb_frames") or 0), "audio": a is not None, "pix_fmt": v.get("pix_fmt"),
+            "rotated": any(abs(rational(sd.get("rotation") or 0)) > 0.5 for sd in v.get("side_data_list") or [])}
 
 
 def even(x):
@@ -235,7 +236,17 @@ def direct_check(src, height):
     gaps = [y - x for x, y in zip(keys, keys[1:])] + [pts[-1] - keys[-1] if keys else 99]
     if not keys or max(gaps) > 3.05:
         return False, "klíčový snímek jen jednou za %.1f s" % max(gaps)
-    return True, {"audio": a is not None}
+    audios = [s for s in j.get("streams", []) if s.get("codec_type") == "audio"]
+    return True, {"audio": a is not None, "simple": len(vs) == 1 and len(audios) <= 1}
+
+
+def low_priority(cmd):
+    """Příprava náhledu nesmí zpomalit práci. macOS: QoS utility (rozumí mu plánovač jader Apple Silicon).
+    Místo preexec_fn, který je ve vícevláknovém serveru riskantní."""
+    if config.IS_MAC and os.path.exists("/usr/sbin/taskpolicy"):
+        return ["/usr/sbin/taskpolicy", "-c", "utility"] + cmd
+    nice = None if config.IS_WIN else shutil.which("nice")
+    return [nice, "-n", "10"] + cmd if nice else cmd
 
 
 def _ffmpeg(cmd, tmp, dst, dur, on_progress):
@@ -243,9 +254,7 @@ def _ffmpeg(cmd, tmp, dst, dur, on_progress):
     kw = {}
     if config.IS_WIN:
         kw["creationflags"] = NO_WINDOW | 0x00004000  # BELOW_NORMAL_PRIORITY_CLASS
-    else:
-        kw["preexec_fn"] = lambda: os.nice(10)
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+    p = subprocess.Popen(low_priority(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
                          errors="replace", **kw)
     err = []
     t = threading.Thread(target=lambda: err.extend(p.stderr.read().splitlines()[-12:]), daemon=True)
@@ -268,11 +277,62 @@ def _ffmpeg(cmd, tmp, dst, dur, on_progress):
     return None
 
 
+def is_faststart(path):
+    """Leží index (moov) před daty (mdat)? Pak jde soubor streamovat beze změny. Čte jen hlavičky atomů."""
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            off = 0
+            while off + 8 <= size:
+                f.seek(off)
+                head = f.read(16)
+                n, kind = struct.unpack(">I4s", head[:8])
+                if n == 1 and len(head) == 16:
+                    n = struct.unpack(">Q", head[8:16])[0]
+                if kind == b"moov":
+                    return True
+                if kind == b"mdat" or n < 8:
+                    return False
+                off += n
+    except (OSError, struct.error):
+        pass
+    return False
+
+
+def clone_file(src, dst):
+    """Kopie na APFS, která nezabere místo navíc (a vzniká okamžitě). Jen v rámci jednoho disku."""
+    if not config.IS_MAC:
+        return False
+    try:
+        if os.stat(src).st_dev != os.stat(os.path.dirname(dst)).st_dev:
+            return False
+    except OSError:
+        return False
+    return run(["cp", "-c", src, dst], timeout=120).returncode == 0
+
+
+_vt_scale = None
+
+
+def vt_scale_available():
+    """scale_vt (ffmpeg 7+): zmenšení obrazu přímo v GPU, snímky se nekopírují přes procesor."""
+    global _vt_scale
+    if _vt_scale is None:
+        r = run([config.tool("ffmpeg"), "-hide_banner", "-filters"], timeout=20)
+        _vt_scale = " scale_vt " in (r.stdout or "")
+    return _vt_scale
+
+
+def proxy_size(w, h, long_side):
+    k = min(1.0, long_side / float(max(w, h)))
+    return even(w * k), even(h * k)
+
+
 def make_proxy(src, dst, info, height, on_progress):
-    """Video pro prohlížeč. Vyhovující originál se jen přebalí (vteřiny, bez kódování). Jinak náhled:
+    """Video pro prohlížeč. Vyhovující originál se použije rovnou (klon na APFS, jinak přebalení). Jinak náhled:
     H.264, pevná frekvence (snímky sedí na kresby), klíčový snímek dvakrát za vteřinu (rychlé skoky
-    a krokování), faststart, zvuk AAC 48 kHz bez mezer. Na Macu kóduje hardware (Media Engine),
-    procesor skoro nezatíží; když to nejde, kóduje libx264. Vrací (chyba, způsob)."""
+    a krokování), faststart, zvuk AAC 48 kHz bez mezer. Na Macu dekódování, zmenšení i kódování běží v Media
+    Engine a GPU, procesor skoro nezatíží; libx264 je až poslední možnost. Vrací (chyba, způsob)."""
     ffmpeg = config.tool("ffmpeg")
     if not ffmpeg:
         return "Chybí ffmpeg (Nastavení › O aplikaci).", None
@@ -280,6 +340,8 @@ def make_proxy(src, dst, info, height, on_progress):
     dur = info.get("duration") or 0
     ok, why = direct_check(src, height)
     if ok:
+        if why.get("simple") and is_faststart(src) and clone_file(src, dst):
+            return None, "clone"
         cmd = [ffmpeg, "-hide_banner", "-nostdin", "-y", "-i", src, "-map", "0:v:0"] + (["-map", "0:a:0"] if why["audio"] else ["-an"]) + [
             "-c", "copy", "-movflags", "+faststart", "-map_metadata", "-1", "-progress", "pipe:1", "-nostats", tmp]
         if not _ffmpeg(cmd, tmp, dst, dur, on_progress):
@@ -289,22 +351,39 @@ def make_proxy(src, dst, info, height, on_progress):
     g = str(max(1, int(round(info.get("fps") or 30) / 2)))
     vf = ("scale='if(gte(iw,ih),min(%d,trunc(iw/2)*2),-2)':'if(gte(iw,ih),-2,min(%d,trunc(ih/2)*2))':flags=bicubic,"
           "setsar=1,format=yuv420p" % (long_side, long_side))
-    def build(hw):
-        cmd = [ffmpeg, "-hide_banner", "-nostdin", "-y"] + (["-hwaccel", "videotoolbox"] if hw else []) + ["-i", src, "-map", "0:v:0"]
+
+    def build(mode):
+        hw = mode != "sw"
+        cmd = [ffmpeg, "-hide_banner", "-nostdin", "-y"] + (["-hwaccel", "videotoolbox"] if hw else [])
+        if mode == "gpu":
+            cmd += ["-hwaccel_output_format", "videotoolbox_vld"]
+        cmd += ["-i", src, "-map", "0:v:0"]
         if info.get("audio"):
             cmd += ["-map", "0:a:0", "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "48000", "-af", "aresample=async=1:first_pts=0"]
         else:
             cmd += ["-an"]
-        cmd += ["-vf", vf, "-r", info.get("fps_s") or "30"] + fps_mode_args()
+        if mode == "gpu":
+            cmd += ["-vf", "scale_vt=w=%d:h=%d,setsar=1" % proxy_size(info["width"], info["height"], long_side)]
+        else:
+            cmd += ["-vf", vf]
+        cmd += ["-r", info.get("fps_s") or "30"] + fps_mode_args()
         if hw:
             cmd += ["-c:v", "h264_videotoolbox", "-q:v", "65", "-allow_sw", "0", "-g", g]
-        else:
-            cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-g", g, "-keyint_min", g, "-sc_threshold", "0"]
+        else:  # poslední možnost: polovina jader, zbytek zůstane uživateli
+            cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-g", g, "-keyint_min", g, "-sc_threshold", "0",
+                    "-threads", str(max(2, (os.cpu_count() or 4) // 2))]
         return cmd + ["-profile:v", "high", "-movflags", "+faststart", "-map_metadata", "-1", "-progress", "pipe:1", "-nostats", tmp]
+
     if config.IS_MAC and config.load().get("hw_encode", True):
-        if not _ffmpeg(build(True), tmp, dst, dur, on_progress):
+        # zmenšení v GPU neumí otočené ani 10bitové zdroje: ty jdou cestou s převodem barev na procesoru
+        if (info.get("pix_fmt") in ("yuv420p", "nv12") and not info.get("rotated") and info.get("width") and info.get("height")
+                and vt_scale_available() and not _ffmpeg(build("gpu"), tmp, dst, dur, on_progress)):
+            return None, "gpu (%s)" % why
+        hw_err = _ffmpeg(build("hw"), tmp, dst, dur, on_progress)
+        if not hw_err:
             return None, "hw (%s)" % why
-    err = _ffmpeg(build(False), tmp, dst, dur, on_progress)
+        print("Náhled: hardwarové kódování selhalo, používám libx264 (%s): %s" % (os.path.basename(src), hw_err.splitlines()[-1][:200]), flush=True)
+    err = _ffmpeg(build("sw"), tmp, dst, dur, on_progress)
     return err, None if err else "sw (%s)" % why
 
 

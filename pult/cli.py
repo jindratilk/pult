@@ -586,6 +586,8 @@ def cmd_doctor(a):
     if ff:
         r = library.run([ff, "-hide_banner", "-encoders"], timeout=20)
         line("libx264" in (r.stdout or ""), "ffmpeg can encode H.264 (libx264)", "Install a full ffmpeg build (brew / Gyan.FFmpeg).")
+        if config.IS_MAC:
+            line("h264_videotoolbox" in (r.stdout or ""), "ffmpeg can use the Mac's video hardware (VideoToolbox)", "Previews fall back to the CPU. Install ffmpeg with Homebrew: brew install ffmpeg")
     lib = library.root()
     try:
         os.makedirs(lib, exist_ok=True)
