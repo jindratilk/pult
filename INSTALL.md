@@ -64,6 +64,7 @@ pult add -t "Pult test" <any image or video>
 
 - New version: run `pult update`. It downloads the update into the folder Pult was installed from and installs it. The library and settings are kept. Tell the user the new version and what changed.
 - If it reports local changes or own commits in that folder, stop and tell the user. Do not discard them.
+- If it reports that the repository history was rewritten, stop and tell the user. Run `pult update --accept-rewritten-history` only after they confirm they trust the new history.
 - Older Pult without `pult update` (unknown command): find the folder it was installed from (it has `install.py` and `pult/server.py`, usually `~/pult-source`), run `git pull --ff-only` there, then `python3 install.py --no-open`. If there is no such folder, or git refuses because the histories differ and the folder has no changes of its own, clone the link the user gave you into a new folder `~/pult-source-new` and run `python3 install.py --no-open` from it. Do not delete the old folder.
 - Installed from a zip: download the new zip, then run `install.py` again.
 - Uninstall: `python3 install.py --uninstall` (Windows `py install.py --uninstall`). The library with batches stays; `--purge` also deletes the settings.

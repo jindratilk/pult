@@ -94,7 +94,7 @@ The user should not have to delete leftovers by hand. Do it yourself, but only f
 | `pult doctor` | check the install (Python, ffmpeg, server, start at login) |
 | `pult start` / `pult restart` / `pult stop` | server |
 | `pult reload` | reload Pult on all connected devices |
-| `pult update` | update Pult to the newest version from the repository it was installed from; the library and settings stay. Tell the user the new version and what changed. If it reports local changes or own commits, leave them and tell the user. `--from FOLDER` if the clone cannot be found |
+| `pult update` | update Pult to the newest version from the repository it was installed from; the library and settings stay. Tell the user the new version and what changed. If it reports local changes or own commits, leave them and tell the user. `--from FOLDER` if the clone cannot be found If it reports rewritten repository history, stop and ask the user before using `--accept-rewritten-history`. |
 | `pult wait ID` | wait for the batch review (run in the background, see above) |
 | `pult progress ID "text"` | show "working" in Pult with a short message about what you are doing |
 | `pult dictation` | microphone dictation status; `pult dictation install` installs local speech-to-text (Whisper large-v3-turbo: mlx-whisper on Apple Silicon, faster-whisper elsewhere; on Mac also NVIDIA Parakeet TDT 0.6B v3; needs internet and a few GB); `pult dictation model whisper-turbo` / `parakeet-v3` switches the model (also Settings › Dictation); `pult dictation use /path/python` uses an existing environment |

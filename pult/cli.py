@@ -521,6 +521,10 @@ def cmd_update(a):
     base = git(src, "merge-base", "HEAD", "@{u}")
     log = ""
     if base.returncode:  # repozitář má přepsanou historii: staré commity zůstanou v záložní větvi
+        if not a.accept_rewritten_history:  # přepsaná historie je zároveň to, jak by vypadala podvržená verze
+            update_stop("Not updated: the repository history was rewritten, so this download cannot be compared with the version you have.\n"
+                        "Check the repository first: %s\nIf you trust it, run: pult update --accept-rewritten-history"
+                        % git(src, "remote", "get-url", "origin").stdout.strip())
         backup = "before-update-" + time.strftime("%Y%m%d-%H%M%S")
         git(src, "branch", backup)
         if git(src, "reset", "--hard", "@{u}").returncode:
@@ -640,6 +644,7 @@ def main():
     pn.set_defaults(fn=cmd_note)
     pu = sub.add_parser("update", help="update Pult to the newest version (keeps the library and settings)")
     pu.add_argument("--from", dest="source", metavar="FOLDER", help="the git clone Pult was installed from, if it cannot be found")
+    pu.add_argument("--accept-rewritten-history", action="store_true", help="install even though the repository history was rewritten (check the repository first)")
     pu.set_defaults(fn=cmd_update)
     px = sub.add_parser("dismiss", help="remove batches that were settled in the chat (refuses batches with someone's notes)")
     px.add_argument("batch", nargs="+")
