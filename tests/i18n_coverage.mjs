@@ -38,7 +38,9 @@ for (const f of files) {
   lines.forEach((line, i) => {
     const where = `${path.basename(f)}:${i + 1}`;
     if (/\bdbg\(|console\./.test(line)) return;  // ladicí výpisy nejsou rozhraní
-    const code = line.replace(/^\s*\/\/.*$/, "").replace(/\s\/\/ .*$/, "").replace(/\/\*.*?\*\//g, "");
+    const code = line.replace(/^\s*\/\/.*$/, "").replace(/\s\/\/ .*$/, "").replace(/\/\*.*?\*\//g, "")
+      // isEN() ? "English" : "česky": česká větev se v angličtině nikdy neukáže
+      .replace(/isEN\(\)\s*\?\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g, "$1");
     if (/data-noi18n/.test(code) && !/</.test(code.replace(/data-noi18n[^>]*>[^<]*</g, ""))) return;
     if (f.endsWith(".html")) {
       for (const m of code.matchAll(/>([^<>]+)</g)) add(m[1], where);
